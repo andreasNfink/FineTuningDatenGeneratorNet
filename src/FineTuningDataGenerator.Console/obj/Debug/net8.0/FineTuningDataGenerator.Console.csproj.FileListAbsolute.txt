@@ -48,3 +48,4 @@ C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Console\obj\De
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Console\obj\Debug\net8.0\FineTuningDataGenerator.Console.pdb
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Console\obj\Debug\net8.0\FineTuningDataGenerator.Console.genruntimeconfig.cache
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Console\obj\Debug\net8.0\ref\FineTuningDataGenerator.Console.dll
+C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Console\obj\Debug\net8.0\FineTuningDataGenerator.Console.sourcelink.json

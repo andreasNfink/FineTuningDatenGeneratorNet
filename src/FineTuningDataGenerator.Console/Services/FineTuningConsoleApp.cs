@@ -2,6 +2,7 @@ using FineTuningDataGenerator.Core.Models;
 using FineTuningDataGenerator.Core.Processors;
 using FineTuningDataGenerator.Core.Services;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace FineTuningDataGenerator.Console.Services;
 
@@ -52,13 +53,11 @@ public class FineTuningConsoleApp
     private async Task RunInteractiveMode()
     {
         _logger.LogInformation("Interaktiver Modus gestartet");
-        _logger.LogInformation("");
-
-        System.Console.WriteLine("Optionen:");
+        _logger.LogInformation("");        System.Console.WriteLine("Optionen:");
         System.Console.WriteLine("1. Einzelne Datei bereinigen");
         System.Console.WriteLine("2. Verzeichnis bereinigen");
         System.Console.WriteLine("3. Beispieldateien aus InputFiles bereinigen");
-        System.Console.WriteLine("4. Finetuning-Daten aus Anleitungen generieren");
+        System.Console.WriteLine("4. Kontextbewusste Finetuning-Daten generieren (Enhanced)");
         System.Console.WriteLine("5. LLM-Verbindung testen");
         System.Console.WriteLine("");
         System.Console.Write("Wählen Sie eine Option (1-5): ");
@@ -258,14 +257,14 @@ public class FineTuningConsoleApp
 
         _logger.LogInformation("");
         _logger.LogInformation("🎉 Verarbeitung abgeschlossen!");
-    }
-
-    /// <summary>
-    /// Interaktive Generierung von Finetuning-Daten
+    }    /// <summary>
+    /// Interaktive Generierung von Finetuning-Daten mit verbesserter kontextbewusster Pipeline
     /// </summary>
     private async Task GenerateFineTuningDataInteractive()
     {
-        _logger.LogInformation("=== Finetuning-Daten Generierung ===");        // LLM-Konfiguration abfragen
+        _logger.LogInformation("=== Kontextbewusste Finetuning-Daten Generierung ===");
+        
+        // LLM-Konfiguration abfragen
         var llmConfig = GetLLMConfigInteractive();
         if (llmConfig == null) return;
 
@@ -275,30 +274,49 @@ public class FineTuningConsoleApp
         if (string.IsNullOrWhiteSpace(inputPath))
             inputPath = Path.Combine(Directory.GetCurrentDirectory(), "OutputFiles");
 
+        // Erweiterte Konfiguration abfragen
+        System.Console.Write("Maximale Samples pro Chunk (Enter für 3): ");
+        var maxSamplesInput = System.Console.ReadLine();
+        var maxSamplesPerChunk = int.TryParse(maxSamplesInput, out var samples) ? samples : 3;
+
+        System.Console.Write("Maximale Gesamtsamples (Enter für 1000): ");
+        var maxTotalInput = System.Console.ReadLine();
+        var maxTotalSamples = int.TryParse(maxTotalInput, out var total) ? total : 1000;
+
         // Ausgabeverzeichnis
         var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "TrainingData");
         Directory.CreateDirectory(outputDir);
 
-        _logger.LogInformation("Starte Finetuning-Daten Generierung...");
+        _logger.LogInformation("Starte erweiterte Finetuning-Daten Generierung...");
         _logger.LogInformation("Eingabe: {InputPath}", inputPath);
         _logger.LogInformation("Ausgabe: {OutputPath}", outputDir);
+        _logger.LogInformation("Konfiguration: {MaxSamples} max. Samples pro Chunk, {MaxTotal} max. Gesamtsamples", 
+            maxSamplesPerChunk, maxTotalSamples);
 
-        // Pipeline konfigurieren
+        // Enhanced Pipeline konfigurieren mit kontextbewussten Features
         var pipelineConfig = new PipelineConfig
         {
             Type = PipelineType.Instructions,
-            Name = "Anleitungen Pipeline",
-            Description = "Generiert Frage-Antwort-Paare aus technischen Anleitungen",
+            Name = "Enhanced Context-Aware Instructions Pipeline",
+            Description = "Generiert kontextuelle Frage-Antwort-Paare aus technischen Anleitungen mit Dokumentkontext",
             Language = "de",
             LLMConfig = llmConfig,
-            TrainingConfig = new TrainingDataConfig
+            TrainingConfig = new EnhancedTrainingDataConfig
             {
-                SystemMessage = "Sie sind ein hilfreicher Assistent für Instandhaltungsmanagement und technische Anleitungen.",
-                MinChunkSize = 200,
+                SystemMessage = "Sie sind ein hilfreicher Assistent für Instandhaltungsmanagement und technische Anleitungen in Paledo.",
+                MinChunkSize = 300,
                 MaxChunkSize = 1500,
-                MaxSamplesPerChunk = 3,
-                MaxTotalSamples = 100, // Für den Test erstmal weniger
-                QuestionTypes = new List<string> { "was_ist", "wie_funktioniert", "welche_schritte" }
+                MaxSamplesPerChunk = maxSamplesPerChunk,
+                MaxTotalSamples = maxTotalSamples,
+                QuestionTypes = new List<string> 
+                { 
+                    "was_ist", "wie_funktioniert", "welche_schritte", "warum", 
+                    "wann_verwendet", "welche_vorteile", "wie_konfiguriert", 
+                    "was_beachten", "welche_optionen", "wie_unterscheidet" 
+                },
+                UseDocumentContext = true,
+                ContextAnalysisLength = 5000,
+                ContextTemperature = 0.3
             }
         };
 
@@ -306,75 +324,86 @@ public class FineTuningConsoleApp
 
         try
         {
-            // Alle Markdown-Dateien verarbeiten
+            // Alle Markdown-Dateien finden
             var markdownFiles = Directory.GetFiles(inputPath, "*.md", SearchOption.AllDirectories);
-            var allSamples = new List<ConversationSample>();
-
-            foreach (var file in markdownFiles)
+            
+            if (markdownFiles.Length == 0)
             {
-                _logger.LogInformation("Verarbeite: {FileName}", Path.GetFileName(file));
-                
-                var result = await pipeline.ProcessDocumentAsync(file);
-                
-                if (result.Success)
-                {
-                    var samples = result.TrainingData.Select(td => new ConversationSample
-                    {
-                        Messages = new List<Message>
-                        {
-                            new() { Role = "system", Content = td.System },
-                            new() { Role = "user", Content = td.User },
-                            new() { Role = "assistant", Content = td.Assistant }
-                        }
-                    }).ToList();
-                    
-                    allSamples.AddRange(samples);
-                    _logger.LogInformation("✅ {Count} Samples generiert", samples.Count);
-                }
-                else
-                {
-                    _logger.LogError("❌ Fehler bei {FileName}: {Error}", Path.GetFileName(file), result.ErrorMessage);
-                }
+                _logger.LogWarning("Keine Markdown-Dateien in {InputPath} gefunden.", inputPath);
+                return;
             }
 
-            // Exportieren
-            if (allSamples.Count > 0)
+            _logger.LogInformation("Gefunden: {Count} Markdown-Dateien", markdownFiles.Length);
+
+            // Verwende die neue Batch-Verarbeitung für per-Document-Files + kombinierte Ausgabe
+            var batchResult = await pipeline.ProcessMultipleDocumentsAsync(markdownFiles, outputDir);
+            
+            if (batchResult.Success)
             {
-                var outputFile = Path.Combine(outputDir, $"instructions_training_data_{DateTime.Now:yyyyMMdd_HHmmss}.jsonl");
-                await pipeline.ExportToJsonLAsync(allSamples, outputFile);
-                
                 _logger.LogInformation("");
-                _logger.LogInformation("🎉 Finetuning-Daten erfolgreich generiert!");
-                _logger.LogInformation("📊 Gesamt: {Count} Training-Samples", allSamples.Count);
-                _logger.LogInformation("📁 Datei: {OutputFile}", outputFile);
+                _logger.LogInformation("🎉 Kontextbewusste Finetuning-Daten erfolgreich generiert!");
+                _logger.LogInformation("📊 Gesamt: {TotalSamples} Training-Samples aus {TotalFiles} Dateien", 
+                    batchResult.TotalSamples, markdownFiles.Length);
+                _logger.LogInformation("✅ Erfolgreich: {Success} Dokumente", batchResult.SuccessfulDocuments);
+                _logger.LogInformation("❌ Fehlgeschlagen: {Failed} Dokumente", batchResult.FailedDocuments);
+                _logger.LogInformation("⏱️ Verarbeitungszeit: {Time:F2} Sekunden", batchResult.ProcessingTime.TotalSeconds);
                 
-                // Beispiel anzeigen
-                if (allSamples.Count > 0)
+                if (!string.IsNullOrEmpty(batchResult.CombinedOutputFile))
+                {
+                    _logger.LogInformation("📄 Kombinierte Datei: {CombinedFile}", batchResult.CombinedOutputFile);
+                }
+
+                // Zeige Details der einzelnen Dokumente
+                _logger.LogInformation("");
+                _logger.LogInformation("=== Dokumentdetails ===");
+                foreach (var docResult in batchResult.DocumentResults.Where(r => r.Success))
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(docResult.SourceFiles.FirstOrDefault() ?? "");
+                    _logger.LogInformation("📄 {FileName}: {Count} Samples", fileName, docResult.TotalSamples);
+                }
+
+                // Zeige Beispiel aus der kombinierten Datei
+                if (batchResult.TotalSamples > 0 && !string.IsNullOrEmpty(batchResult.CombinedOutputFile) && File.Exists(batchResult.CombinedOutputFile))
                 {
                     _logger.LogInformation("");
-                    _logger.LogInformation("=== Beispiel Training-Sample ===");
-                    var sample = allSamples.First();
-                    foreach (var message in sample.Messages)
+                    _logger.LogInformation("=== Beispiel Training-Sample (kontextbewusst) ===");
+                    
+                    var firstLine = (await File.ReadAllLinesAsync(batchResult.CombinedOutputFile)).FirstOrDefault();
+                    if (!string.IsNullOrEmpty(firstLine))
                     {
-                        _logger.LogInformation("{Role}: {Content}", message.Role.ToUpper(), 
-                            message.Content.Length > 200 ? message.Content.Substring(0, 200) + "..." : message.Content);
+                        try
+                        {
+                            var sample = JsonSerializer.Deserialize<ConversationSample>(firstLine);
+                            if (sample?.Messages != null)
+                            {
+                                foreach (var message in sample.Messages)
+                                {
+                                    var content = message.Content.Length > 300 ? message.Content.Substring(0, 300) + "..." : message.Content;
+                                    _logger.LogInformation("{Role}: {Content}", message.Role.ToUpper(), content);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning("Konnte Beispiel nicht anzeigen: {Error}", ex.Message);
+                        }
                     }
                 }
             }
             else
             {
-                _logger.LogWarning("Keine Training-Samples generiert.");
+                _logger.LogError("❌ Fehler bei der Batch-Verarbeitung: {Error}", batchResult.ErrorMessage);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler bei der Finetuning-Daten Generierung");
+            _logger.LogError(ex, "Fehler bei der erweiterten Finetuning-Daten Generierung");
         }
         finally
         {
             pipeline.Dispose();
         }
-    }    /// <summary>
+    }/// <summary>
     /// Interaktive LLM-Konfiguration
     /// </summary>
     private LLMConfig? GetLLMConfigInteractive()

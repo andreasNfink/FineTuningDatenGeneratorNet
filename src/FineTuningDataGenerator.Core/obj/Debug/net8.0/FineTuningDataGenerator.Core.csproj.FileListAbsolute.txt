@@ -10,3 +10,4 @@ C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Core\obj\Debug
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Core\obj\Debug\net8.0\refint\FineTuningDataGenerator.Core.dll
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Core\obj\Debug\net8.0\FineTuningDataGenerator.Core.pdb
 C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Core\obj\Debug\net8.0\ref\FineTuningDataGenerator.Core.dll
+C:\GitHub\FineTuningDatenGeneratorNet\src\FineTuningDataGenerator.Core\obj\Debug\net8.0\FineTuningDataGenerator.Core.sourcelink.json

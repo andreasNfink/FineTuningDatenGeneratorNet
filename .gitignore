@@ -1,0 +1,11 @@
+bin/
+debug/
+release/
+obj/
+.vscode/
+*.user
+*.suo
+*.ncb
+*.dll   
+*.exe
+*.pdb
