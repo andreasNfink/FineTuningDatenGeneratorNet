@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FineTuningDataGenerator.Console")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d9926e33f8d8df28a1912dad7ac4bf5d2fcc2338")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+936aebdbdbd76e35469c6203ddcd903a9d9ee809")]
 [assembly: System.Reflection.AssemblyProductAttribute("FineTuningDataGenerator.Console")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FineTuningDataGenerator.Console")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

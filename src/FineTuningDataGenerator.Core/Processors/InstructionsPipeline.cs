@@ -289,6 +289,7 @@ public class InstructionsPipeline : IDisposable
             - Erklärungen von Funktionen oder Features enthält
             - Praktische Beispiele oder Anwendungsfälle zeigt
             - Zusammenhängende, verständliche Informationen bietet
+            - Aus einem vollständigen Code-Snippet inklusive Erklärung besteht
 
             Antwort nur mit einem JSON-Objekt:
             {{
@@ -367,13 +368,17 @@ public class InstructionsPipeline : IDisposable
             WICHTIG:
             - Jede Frage muss den Dokumentkontext berücksichtigen (z.B. ""Im Paledo-System..."" oder ""Bei der Auftragserstellung..."")
             - Antworten sollen präzise und basierend auf dem gegebenen Text sein
+            - Wenn es der Kontext hergibt, darf die Frage auch ausführlich sein oder codebeispiele enthalten
+            - Verwende Markdown-Formatierung für Code-Snippets in den Antworten
+            - Verwende Markdown um Antworten zu strukturieren (z.B. Überschriften, Listen) oder wichtige Begriffe hervorzuheben
             - Verwende verschiedene Fragetypen: Was ist, Wie funktioniert, Welche Schritte, etc.
             - Fragen sollen praktisch und für Anwender relevant sein
+            - Bei Fragen die nur mit einem Kontext Sinn machen sollte der Kontext explizit in der Frage erwähnt werden (Anstatt Was ist auf das Frage-Beispiel zu antworten, sollte es heißen Was ist laut der Frage 'Wie heisst das Schiff' zu antworten)
 
             Format als JSON-Array:
             [
               {{
-                ""question"": ""Frage die den Kontext {chunk.DocumentContext.MainTopic} verrknüpft mit der spezifischen Frage basierend auf dem Chunk enthält"",
+                ""question"": ""Frage die den Kontext {chunk.DocumentContext.MainTopic} verrknüpft mit der spezifischen Frage und basierend auf dem Chunk enthält"",
                 ""answer"": ""Detaillierte Antwort basierend auf dem Textinhalt""
               }}
             ]

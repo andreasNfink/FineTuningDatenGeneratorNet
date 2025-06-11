@@ -23,9 +23,9 @@
   },  "InstructionsPipeline": {
     "SystemMessage": "Sie sind ein hilfreicher Assistent für Instandhaltungsmanagement und technische Anleitungen in Paledo.",
     "MinChunkSize": 300,
-    "MaxChunkSize": 1500,
+    "MaxChunkSize": 3000,
     "MaxSamplesPerChunk": 3,
-    "MaxTotalSamples": 1000,
+    "MaxTotalSamples": 2000,
     "QuestionTypes": [
       "was_ist",
       "wie_funktioniert", 
