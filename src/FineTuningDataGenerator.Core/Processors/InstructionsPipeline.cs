@@ -258,12 +258,100 @@ public class InstructionsPipeline : IDisposable
             ? firstSentence 
             : $"{section}: {firstSentence}";
     }    /// <summary>
-    /// Generiert kontextuelle Fragen für einen Chunk mit LLM-Ratenbegrenzung
+    /// Generiert kontextuelle Fragen für einen Chunk mit LLM-Ratenbegrenzung und Qualitätsfilterung
     /// </summary>
     private async Task<List<ConversationSample>> GenerateQuestionsForChunkAsync(ContextualChunk chunk)
     {
         var samples = new List<ConversationSample>();
-          // Enhanced prompt with document context
+
+        // First, evaluate chunk suitability
+        var suitabilityPrompt = $@"
+            AUFGABE: Bewerte ob dieser Textabschnitt für die Generierung von Finetuning-Daten geeignet ist.
+
+            DOKUMENT-KONTEXT:
+            - Thema: {chunk.DocumentContext.MainTopic}
+            - Abschnitt: {chunk.Section}
+
+            CHUNK-INHALT:
+            {chunk.Content}
+
+            BEWERTUNGSKRITERIEN:
+            Ein Chunk ist NICHT geeignet wenn er:
+            - Nur ein Inhaltsverzeichnis oder Navigation enthält
+            - Unvollständigen Code oder Code-Fragmente ohne Erklärung enthält
+            - Hauptsächlich aus Listen ohne Kontext besteht
+            - Zu fragmentiert ist um sinnvolle Fragen zu generieren
+            - Keine praktischen Informationen für Anwender enthält
+            - Nur Metadaten, Formatierung oder strukturelle Elemente enthält
+
+            Ein Chunk ist geeignet wenn er:
+            - Konkrete Anweisungen oder Prozesse beschreibt
+            - Erklärungen von Funktionen oder Features enthält
+            - Praktische Beispiele oder Anwendungsfälle zeigt
+            - Zusammenhängende, verständliche Informationen bietet
+
+            Antwort nur mit einem JSON-Objekt:
+            {{
+                ""suitable"": true/false,
+                ""reason"": ""Kurze Begründung warum geeignet oder nicht geeignet""
+            }}";
+
+        var suitabilityMessages = new List<Message>
+        {
+            new() { Role = "system", Content = "Du bist ein Experte für die Bewertung von Textqualität für Finetuning-Daten. Antworte nur mit validem JSON." },
+            new() { Role = "user", Content = suitabilityPrompt }
+        };
+
+        // Use semaphore to control concurrent LLM requests
+        await _llmSemaphore.WaitAsync();
+        try
+        {
+            var suitabilityResponse = await _llmService.ChatCompletionAsync(suitabilityMessages);
+            
+            // Clean and parse suitability response
+            var cleanSuitabilityResponse = suitabilityResponse.Trim().TrimStart('`').TrimEnd('`');
+            if (cleanSuitabilityResponse.StartsWith("json")) cleanSuitabilityResponse = cleanSuitabilityResponse.Substring(4);
+            
+            var suitabilityResult = JsonSerializer.Deserialize<JsonElement>(cleanSuitabilityResponse);
+            
+            bool isSuitable = true;
+            string reason = "Keine Bewertung erhalten";
+            
+            if (suitabilityResult.TryGetProperty("suitable", out var suitableProperty))
+            {
+                isSuitable = suitableProperty.GetBoolean();
+            }
+            
+            if (suitabilityResult.TryGetProperty("reason", out var reasonProperty))
+            {
+                reason = reasonProperty.GetString() ?? reason;
+            }
+
+            // Log the suitability assessment
+            if (!isSuitable)
+            {
+                WriteToConsole($"⚠️ Chunk {chunk.ChunkIndex} übersprungen: {reason}");
+                
+                // Save unsuitable chunk for review
+                await SaveUnsuitableChunkAsync(chunk, reason);
+                return samples; // Return empty list
+            }
+            else
+            {
+                WriteToConsole($"✅ Chunk {chunk.ChunkIndex} als geeignet bewertet: {reason}");
+            }
+        }
+        catch (Exception ex)
+        {
+            WriteToConsole($"⚠️ Chunk-Bewertung für Chunk {chunk.ChunkIndex} fehlgeschlagen: {ex.Message}. Verarbeitung wird fortgesetzt.");
+            // Continue with processing if evaluation fails
+        }
+        finally
+        {
+            _llmSemaphore.Release();
+        }
+
+        // If chunk is suitable, generate questions
         var questionPrompt = $@"
             DOKUMENT-KONTEXT:
             - Thema: {chunk.DocumentContext.MainTopic}
@@ -335,6 +423,55 @@ public class InstructionsPipeline : IDisposable
         }
 
         return samples;
+    }
+
+    /// <summary>
+    /// Speichert ungeeignete Chunks in einer separaten Datei zur Überprüfung
+    /// </summary>
+    private async Task SaveUnsuitableChunkAsync(ContextualChunk chunk, string reason)
+    {
+        try
+        {
+            var outputDirectory = Path.Combine(Directory.GetCurrentDirectory(), "TrainingData");
+            Directory.CreateDirectory(outputDirectory);
+            
+            var unsuitableFile = Path.Combine(outputDirectory, $"unsuitable_chunks_{DateTime.Now:yyyyMMdd}.jsonl");
+            
+            var unsuitableChunkInfo = new
+            {
+                timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                sourceFile = chunk.Source,
+                chunkIndex = chunk.ChunkIndex,
+                section = chunk.Section,
+                reason = reason,
+                content = chunk.Content,
+                documentContext = new
+                {
+                    mainTopic = chunk.DocumentContext.MainTopic,
+                    summary = chunk.DocumentContext.Summary,
+                    keyConcepts = chunk.DocumentContext.KeyConcepts
+                }
+            };
+            
+            var jsonLine = JsonSerializer.Serialize(unsuitableChunkInfo, new JsonSerializerOptions 
+            { 
+                WriteIndented = false,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            
+            // Thread-safe file writing
+            await Task.Run(() =>
+            {
+                lock (_fileLock)
+                {
+                    File.AppendAllText(unsuitableFile, jsonLine + Environment.NewLine, System.Text.Encoding.UTF8);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            WriteToConsole($"⚠️ Fehler beim Speichern des ungeeigneten Chunks: {ex.Message}");
+        }
     }
 
     /// <summary>

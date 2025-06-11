@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("Eine .NET 8 Bibliothek zum Erstellen von Finetuning-Daten mit GitBook Markdown-Be" +
     "reinigung"))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5d8844782b482228ade4f2f60ee08fd8ebe6a623")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d9926e33f8d8df28a1912dad7ac4bf5d2fcc2338")]
 [assembly: System.Reflection.AssemblyProductAttribute("FineTuningDataGenerator.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FineTuningDataGenerator.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

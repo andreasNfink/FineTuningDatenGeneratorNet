@@ -11,21 +11,21 @@ Ein Paledo-Auftrag durchläuft digital die gesamte Kette von der **Erstellung** 
 Ein Auftrag kann auf verschiedenen Wegen entstehen:
 
 * **Manuelle Anlage** im System 
-* **Automatisch**, z.B. durch den strategiemanager oder bei der Einplanung einer Störmeldung in der aufgabenverteilung
+* **Automatisch**, z.B. durch den Strategiemanager oder bei der Einplanung einer Störmeldung in der Aufgabenverteilung
 * Über **Import** aus einem Drittsystem (z. B. SAP PM)
 
 ### Manuelle Erstellung
 
 Aufträge können aus verschiedenen Ansicht heraus angelegt werden. Der Ablauf ist dabei je Auftragsart immer gleich.
 
-* Auswahl eines **Objekts** aus der anlagenstruktur – manuell oder via **Barcode-Scan**
+* Auswahl eines **Objekts** aus der Anlagenstruktur – manuell oder via **Barcode-Scan**
 * Eingabe eines aussagekräftigen **Titels** und einer **Problembeschreibung**
 * Festlegen von - je nach Konfiguration - **Verantwortlichkeiten, Datum**, **Priorität** und weiteren Details
 * Ggf. Festlegung von **Vorgängen** oder Unteraufträgen 
 
 ### Automatische Erstellung
 
-Mit dem Strategiemanager können regelmäßig wiederkehrende Aufträge automatisiert erstellt und direkt zugewiesen werden. Details sind im Abschnitt strategiemanager beschrieben. 
+Mit dem Strategiemanager können regelmäßig wiederkehrende Aufträge automatisiert erstellt und direkt zugewiesen werden. Details sind im Abschnitt Strategiemanager beschrieben. 
 
 ### Import von Aufträgen
 
@@ -33,7 +33,7 @@ Mit dem Strategiemanager können regelmäßig wiederkehrende Aufträge automatis
 
 ## Zuweisung und Bearbeitung von Aufträgen
 
-Manuell erstellte oder importierte Aufträge finden sich in verschiedenen Listenansichten wieder, z.B. in der aufgabenverteilung. Sofern an einem Auftrag noch keine Verantwortlichkeit und kein Datum festgelegt wurde, wird dieser in der Regel durch die Arbeitsvorbereitung zugewiesen und eingeplant.
+Manuell erstellte oder importierte Aufträge finden sich in verschiedenen Listenansichten wieder, z.B. in der Aufgabenverteilung. Sofern an einem Auftrag noch keine Verantwortlichkeit und kein Datum festgelegt wurde, wird dieser in der Regel durch die Arbeitsvorbereitung zugewiesen und eingeplant.
 
 ### Zuweisung
 
