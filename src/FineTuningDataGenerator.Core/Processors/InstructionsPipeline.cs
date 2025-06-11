@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -7,20 +8,30 @@ using FineTuningDataGenerator.Core.Services;
 namespace FineTuningDataGenerator.Core.Processors;
 
 /// <summary>
-/// Enhanced pipeline für die Generierung von kontextuellen Finetuning-Daten aus Anleitungstexten
+/// Enhanced pipeline für die Generierung von kontextuellen Finetuning-Daten aus Anleitungstexten mit Multithreading-Unterstützung
 /// </summary>
 public class InstructionsPipeline : IDisposable
 {
     private readonly PipelineConfig _config;
     private readonly LLMService _llmService;
     private readonly DocumentChunker _chunker;
+    private readonly SemaphoreSlim _llmSemaphore;
+    private readonly object _fileLock = new object();
+    private readonly object _consoleWriteLock = new object();
 
     public InstructionsPipeline(PipelineConfig config)
     {
         _config = config;
         _llmService = new LLMService(config.LLMConfig);
         _chunker = new DocumentChunker();
-    }    /// <summary>
+        
+        // Initialize semaphore based on configuration
+        var maxConcurrentRequests = config.TrainingConfig is EnhancedTrainingDataConfig enhanced 
+            ? enhanced.MaxConcurrentLLMRequests 
+            : 4; // Default fallback
+        
+        _llmSemaphore = new SemaphoreSlim(maxConcurrentRequests, maxConcurrentRequests);
+    }/// <summary>
     /// Verarbeitet eine Markdown-Datei und generiert kontextuelle Finetuning-Daten
     /// </summary>
     public async Task<TrainingDataGenerationResult> ProcessDocumentAsync(string filePath, string? outputDirectory = null)
@@ -50,31 +61,45 @@ public class InstructionsPipeline : IDisposable
             
             // Step 2: Create contextual chunks
             var chunks = CreateContextualChunks(content, documentContext, fileName);
-            WriteToConsole($"📦 Erstellt {chunks.Count} kontextuelle Chunks");
+            WriteToConsole($"📦 Erstellt {chunks.Count} kontextuelle Chunks");            // Step 3: Generate training samples with parallel processing
+            var allSamples = new ConcurrentBag<ConversationSample>();
+            var processedSamples = 0L; // Use long for Interlocked operations
+            var maxConcurrentChunks = _config.TrainingConfig is EnhancedTrainingDataConfig enhanced 
+                ? enhanced.MaxConcurrentChunks 
+                : Environment.ProcessorCount;
+
+            WriteToConsole($"🚀 Starte parallele Verarbeitung mit max. {maxConcurrentChunks} gleichzeitigen Chunks");
             
-            // Step 3: Generate training samples incrementally
-            var samples = new List<ConversationSample>();
-            var processedSamples = 0;
-            
-            foreach (var chunk in chunks)
+            var chunkTasks = chunks.Select(async (chunk, index) =>
             {
-                if (processedSamples >= _config.TrainingConfig.MaxTotalSamples) break;
-                
-                var chunkSamples = await GenerateQuestionsForChunkAsync(chunk);
-                var samplesToAdd = chunkSamples.Take(_config.TrainingConfig.MaxSamplesPerChunk).ToList();
-                
-                // Append each sample to document file immediately
-                foreach (var sample in samplesToAdd)
+                if (Interlocked.Read(ref processedSamples) >= _config.TrainingConfig.MaxTotalSamples)
+                    return new List<ConversationSample>();
+
+                try
                 {
-                    var jsonLine = sample.ToJsonL();
-                    await File.AppendAllTextAsync(documentOutputFile, jsonLine + Environment.NewLine, System.Text.Encoding.UTF8);
+                    var chunkSamples = await GenerateQuestionsForChunkAsync(chunk);
+                    var samplesToAdd = chunkSamples.Take(_config.TrainingConfig.MaxSamplesPerChunk).ToList();
+                    
+                    // Thread-safe file writing
+                    await WriteChunkSamplesToFileAsync(documentOutputFile, samplesToAdd);
+                    
+                    // Update counters thread-safely
+                    Interlocked.Add(ref processedSamples, samplesToAdd.Count);
+                    
+                    WriteToConsole($"✅ Chunk {chunk.ChunkIndex}: {samplesToAdd.Count} Fragen generiert und gespeichert");
+                    
+                    return samplesToAdd;
                 }
-                
-                samples.AddRange(samplesToAdd);
-                processedSamples += samplesToAdd.Count;
-                
-                WriteToConsole($"✅ Chunk {chunk.ChunkIndex}: {samplesToAdd.Count} Fragen generiert und gespeichert");
-            }
+                catch (Exception ex)
+                {
+                    WriteToConsole($"❌ Fehler bei Chunk {chunk.ChunkIndex}: {ex.Message}");
+                    return new List<ConversationSample>();
+                }
+            }).ToArray();
+
+            // Wait for all chunk processing to complete
+            var chunkResults = await Task.WhenAll(chunkTasks);
+            var samples = chunkResults.SelectMany(s => s).ToList();
             
             WriteToConsole($"🎯 Gesamt: {samples.Count} Training-Samples für {fileName}");
             WriteToConsole($"📁 Dokument-Datei: {documentOutputFile}");
@@ -232,10 +257,8 @@ public class InstructionsPipeline : IDisposable
         return string.IsNullOrEmpty(section) 
             ? firstSentence 
             : $"{section}: {firstSentence}";
-    }
-
-    /// <summary>
-    /// Generiert kontextuelle Fragen für einen Chunk
+    }    /// <summary>
+    /// Generiert kontextuelle Fragen für einen Chunk mit LLM-Ratenbegrenzung
     /// </summary>
     private async Task<List<ConversationSample>> GenerateQuestionsForChunkAsync(ContextualChunk chunk)
     {
@@ -262,7 +285,7 @@ public class InstructionsPipeline : IDisposable
             Format als JSON-Array:
             [
               {{
-                ""question"": ""Im Kontext von {chunk.DocumentContext.MainTopic}: Spezifische Frage basierend auf dem Chunk"",
+                ""question"": ""Frage die den Kontext {chunk.DocumentContext.MainTopic} verrknüpft mit der spezifischen Frage basierend auf dem Chunk enthält"",
                 ""answer"": ""Detaillierte Antwort basierend auf dem Textinhalt""
               }}
             ]
@@ -275,6 +298,8 @@ public class InstructionsPipeline : IDisposable
             new() { Role = "user", Content = questionPrompt }
         };
 
+        // Use semaphore to control concurrent LLM requests
+        await _llmSemaphore.WaitAsync();
         try
         {
             var response = await _llmService.ChatCompletionAsync(messages);
@@ -303,6 +328,10 @@ public class InstructionsPipeline : IDisposable
         catch (Exception ex)
         {
             WriteToConsole($"⚠️ Frage-Generierung für Chunk {chunk.ChunkIndex} fehlgeschlagen: {ex.Message}");
+        }
+        finally
+        {
+            _llmSemaphore.Release();
         }
 
         return samples;
@@ -367,57 +396,81 @@ public class InstructionsPipeline : IDisposable
         try
         {
             outputDirectory ??= Path.Combine(Directory.GetCurrentDirectory(), "TrainingData");
-            Directory.CreateDirectory(outputDirectory);
-
-            var allSamples = new List<ConversationSample>();
+            Directory.CreateDirectory(outputDirectory);            var allSamples = new ConcurrentBag<ConversationSample>();
             var combinedOutputFile = Path.Combine(outputDirectory, $"combined_training_data_{DateTime.Now:yyyyMMdd_HHmmss}.jsonl");
 
-            WriteToConsole($"🚀 Starte Verarbeitung von {filePaths.Length} Dokumenten");
+            var maxConcurrentDocs = _config.TrainingConfig is EnhancedTrainingDataConfig enhanced 
+                ? enhanced.MaxConcurrentDocuments 
+                : Environment.ProcessorCount;
+
+            WriteToConsole($"🚀 Starte parallele Verarbeitung von {filePaths.Length} Dokumenten");
             WriteToConsole($"📁 Ausgabeverzeichnis: {outputDirectory}");
             WriteToConsole($"📄 Kombinierte Datei: {Path.GetFileName(combinedOutputFile)}");
+            WriteToConsole($"🔧 Max. parallele Dokumente: {maxConcurrentDocs}");
 
-            foreach (var filePath in filePaths)
+            // Process documents in parallel with controlled concurrency
+            var semaphore = new SemaphoreSlim(maxConcurrentDocs, maxConcurrentDocs);
+            var documentTasks = filePaths.Select(async filePath =>
             {
-                var fileName = Path.GetFileNameWithoutExtension(filePath);
-                WriteToConsole($"\n📄 Verarbeite: {fileName}");
-
-                var documentResult = await ProcessDocumentAsync(filePath, outputDirectory);
-                
-                if (documentResult.Success)
+                await semaphore.WaitAsync();
+                try
                 {
-                    // Convert TrainingData back to ConversationSample for consistency
-                    var documentSamples = documentResult.TrainingData.Select(td => new ConversationSample
+                    var fileName = Path.GetFileNameWithoutExtension(filePath);
+                    WriteToConsole($"\n📄 Starte Verarbeitung: {fileName}");
+
+                    var documentResult = await ProcessDocumentAsync(filePath, outputDirectory);
+                    
+                    if (documentResult.Success)
                     {
-                        Messages = new List<Message>
+                        // Convert TrainingData back to ConversationSample for consistency
+                        var documentSamples = documentResult.TrainingData.Select(td => new ConversationSample
                         {
-                            new() { Role = "user", Content = td.User },
-                            new() { Role = "assistant", Content = td.Assistant }
+                            Messages = new List<Message>
+                            {
+                                new() { Role = "user", Content = td.User },
+                                new() { Role = "assistant", Content = td.Assistant }
+                            }
+                        });
+
+                        // Add to concurrent collection
+                        foreach (var sample in documentSamples)
+                        {
+                            allSamples.Add(sample);
                         }
-                    }).ToList();
 
-                    allSamples.AddRange(documentSamples);
-                    result.DocumentResults.Add(documentResult);
-                    result.TotalSamples += documentResult.TotalSamples;
+                        WriteToConsole($"✅ {documentResult.TotalSamples} Samples generiert für {fileName}");
+                    }
+                    else
+                    {
+                        WriteToConsole($"❌ Fehler bei {fileName}: {documentResult.ErrorMessage}");
+                    }
 
-                    WriteToConsole($"✅ {documentResult.TotalSamples} Samples generiert für {fileName}");
+                    return documentResult;
                 }
-                else
+                finally
                 {
-                    WriteToConsole($"❌ Fehler bei {fileName}: {documentResult.ErrorMessage}");
-                    result.DocumentResults.Add(documentResult);
+                    semaphore.Release();
                 }
-            }
+            }).ToArray();
+
+            // Wait for all document processing to complete
+            var documentResults = await Task.WhenAll(documentTasks);
+            
+            // Update result
+            result.DocumentResults.AddRange(documentResults);
+            result.TotalSamples = documentResults.Where(r => r.Success).Sum(r => r.TotalSamples);
 
             // Create combined output file
             if (allSamples.Count > 0)
             {
-                await ExportToJsonLAsync(allSamples, combinedOutputFile);
+                var combinedSamples = allSamples.ToList();
+                await ExportToJsonLAsync(combinedSamples, combinedOutputFile);
                 result.CombinedOutputFile = combinedOutputFile;
                 result.Success = true;
 
-                WriteToConsole($"\n🎯 Verarbeitung abgeschlossen:");
+                WriteToConsole($"\n🎯 Parallele Verarbeitung abgeschlossen:");
                 WriteToConsole($"📊 Gesamt: {allSamples.Count} Training-Samples aus {filePaths.Length} Dokumenten");
-                WriteToConsole($"📁 Einzeldateien: {result.DocumentResults.Count(r => r.Success)} erfolgreich");
+                WriteToConsole($"📁 Einzeldateien: {result.SuccessfulDocuments} erfolgreich");
                 WriteToConsole($"📄 Kombinierte Datei: {combinedOutputFile}");
             }
             else
@@ -437,15 +490,37 @@ public class InstructionsPipeline : IDisposable
     }
 
     /// <summary>
-    /// Schreibt eine Nachricht in die Konsole
+    /// Thread-safe method to write chunk samples to file
+    /// </summary>
+    private async Task WriteChunkSamplesToFileAsync(string filePath, List<ConversationSample> samples)
+    {
+        if (samples.Count == 0) return;
+
+        var jsonLines = samples.Select(s => s.ToJsonL() + Environment.NewLine);
+        var content = string.Join("", jsonLines);
+
+        // Use lock to ensure thread-safe file writing
+        await Task.Run(() =>
+        {
+            lock (_fileLock)
+            {
+                File.AppendAllText(filePath, content, System.Text.Encoding.UTF8);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Thread-safe console writing method
     /// </summary>
     private void WriteToConsole(string message)
     {
-        Console.WriteLine(message);
-    }
-
-    public void Dispose()
+        lock (_consoleWriteLock)
+        {
+            Console.WriteLine(message);
+        }
+    }    public void Dispose()
     {
         _llmService?.Dispose();
+        _llmSemaphore?.Dispose();
     }
 }

@@ -137,6 +137,11 @@ public class EnhancedTrainingDataConfig : TrainingDataConfig
     public bool UseDocumentContext { get; set; } = true;
     public int ContextAnalysisLength { get; set; } = 5000;
     public double ContextTemperature { get; set; } = 0.3;
+    
+    // Concurrency settings
+    public int MaxConcurrentDocuments { get; set; } = Environment.ProcessorCount;
+    public int MaxConcurrentChunks { get; set; } = Environment.ProcessorCount * 2;
+    public int MaxConcurrentLLMRequests { get; set; } = 4; // Conservative default for LLM load
 }
 
 /// <summary>

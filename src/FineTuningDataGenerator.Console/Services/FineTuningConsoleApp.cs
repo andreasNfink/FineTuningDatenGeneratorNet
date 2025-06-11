@@ -272,9 +272,7 @@ public class FineTuningConsoleApp
         System.Console.Write("Pfad zu den bereinigten Markdown-Dateien (Enter für OutputFiles): ");
         var inputPath = System.Console.ReadLine();
         if (string.IsNullOrWhiteSpace(inputPath))
-            inputPath = Path.Combine(Directory.GetCurrentDirectory(), "OutputFiles");
-
-        // Erweiterte Konfiguration abfragen
+            inputPath = Path.Combine(Directory.GetCurrentDirectory(), "OutputFiles");        // Erweiterte Konfiguration abfragen
         System.Console.Write("Maximale Samples pro Chunk (Enter für 3): ");
         var maxSamplesInput = System.Console.ReadLine();
         var maxSamplesPerChunk = int.TryParse(maxSamplesInput, out var samples) ? samples : 3;
@@ -283,22 +281,35 @@ public class FineTuningConsoleApp
         var maxTotalInput = System.Console.ReadLine();
         var maxTotalSamples = int.TryParse(maxTotalInput, out var total) ? total : 1000;
 
+        // Parallelisierungs-Konfiguration
+        System.Console.Write($"Maximale parallele Dokumente (Enter für {Environment.ProcessorCount}): ");
+        var maxDocsInput = System.Console.ReadLine();
+        var maxConcurrentDocs = int.TryParse(maxDocsInput, out var docs) ? docs : Environment.ProcessorCount;
+
+        System.Console.Write($"Maximale parallele Chunks pro Dokument (Enter für {Environment.ProcessorCount * 2}): ");
+        var maxChunksInput = System.Console.ReadLine();
+        var maxConcurrentChunks = int.TryParse(maxChunksInput, out var chunks) ? chunks : Environment.ProcessorCount * 2;
+
+        System.Console.Write("Maximale gleichzeitige LLM-Anfragen (Enter für 4): ");
+        var maxLLMInput = System.Console.ReadLine();
+        var maxConcurrentLLM = int.TryParse(maxLLMInput, out var llmReqs) ? llmReqs : 4;
+
         // Ausgabeverzeichnis
         var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "TrainingData");
-        Directory.CreateDirectory(outputDir);
-
-        _logger.LogInformation("Starte erweiterte Finetuning-Daten Generierung...");
+        Directory.CreateDirectory(outputDir);        _logger.LogInformation("Starte erweiterte Finetuning-Daten Generierung...");
         _logger.LogInformation("Eingabe: {InputPath}", inputPath);
         _logger.LogInformation("Ausgabe: {OutputPath}", outputDir);
         _logger.LogInformation("Konfiguration: {MaxSamples} max. Samples pro Chunk, {MaxTotal} max. Gesamtsamples", 
             maxSamplesPerChunk, maxTotalSamples);
+        _logger.LogInformation("Parallelisierung: {MaxDocs} Dokumente, {MaxChunks} Chunks, {MaxLLM} LLM-Anfragen", 
+            maxConcurrentDocs, maxConcurrentChunks, maxConcurrentLLM);
 
-        // Enhanced Pipeline konfigurieren mit kontextbewussten Features
+        // Enhanced Pipeline konfigurieren mit kontextbewussten Features und Multithreading
         var pipelineConfig = new PipelineConfig
         {
             Type = PipelineType.Instructions,
-            Name = "Enhanced Context-Aware Instructions Pipeline",
-            Description = "Generiert kontextuelle Frage-Antwort-Paare aus technischen Anleitungen mit Dokumentkontext",
+            Name = "Multithreaded Context-Aware Instructions Pipeline",
+            Description = "Generiert kontextuelle Frage-Antwort-Paare mit paralleler Verarbeitung",
             Language = "de",
             LLMConfig = llmConfig,
             TrainingConfig = new EnhancedTrainingDataConfig
@@ -316,7 +327,11 @@ public class FineTuningConsoleApp
                 },
                 UseDocumentContext = true,
                 ContextAnalysisLength = 5000,
-                ContextTemperature = 0.3
+                ContextTemperature = 0.3,
+                // Multithreading-Konfiguration
+                MaxConcurrentDocuments = maxConcurrentDocs,
+                MaxConcurrentChunks = maxConcurrentChunks,
+                MaxConcurrentLLMRequests = maxConcurrentLLM
             }
         };
 

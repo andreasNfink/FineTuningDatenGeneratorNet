@@ -35,17 +35,22 @@ public class GitBookMarkdownCleaner
 
         // 2. GitBook Includes entfernen ({% include "..." %})
         cleanedContent = _gitBookIncludeRegex.Replace(cleanedContent, string.Empty);        // 3. GitBook Mentions bereinigen [text](link "mention") -> [text](link)
-        cleanedContent = _gitBookMentionRegex.Replace(cleanedContent, "[$1]");
-
-        // 4. Interne Links bereinigen [filename.md] -> filename
+        cleanedContent = _gitBookMentionRegex.Replace(cleanedContent, "[$1]");        // 4. Interne Links bereinigen [filename.md] -> filename
         cleanedContent = _internalLinkRegex.Replace(cleanedContent, match =>
         {
             var filename = match.Groups[1].Value;
-            // Entferne .md Endung und gib nur den Dateinamen zurück
-            return filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase) 
+            // Entferne .md Endung und gib nur den Dateinamen zurück, mache den aber mit großem Anfangsbuchstaben
+            // und ohne Dateiendung
+            var cleanFilename = filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
                 ? filename.Substring(0, filename.Length - 3)
                 : filename;
-        });        // 5. Mark-Tags bereinigen und Inhalt extrahieren
+            
+            // Ersten Buchstaben großschreiben
+            return string.IsNullOrEmpty(cleanFilename) 
+                ? cleanFilename 
+                : char.ToUpper(cleanFilename[0]) + cleanFilename.Substring(1);
+                
+        });// 5. Mark-Tags bereinigen und Inhalt extrahieren
         cleanedContent = _markTagRegex.Replace(cleanedContent, "$1");
 
         // 6. HTML-Tags entfernen
