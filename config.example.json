@@ -1,0 +1,44 @@
+{
+  "LLMConfigs": {
+    "default": {
+      "Name": "vllm9005",
+      "ApiHost": "http://svki01:9005/v1",
+      "ApiKey": "",
+      "Model": "mydata",
+      "IsOpenAICompatible": true,
+      "MaxTokens": 4000,
+      "Temperature": 0.7,
+      "RequestTimeout": 90
+    },
+    "local": {
+      "Name": "local-llm",
+      "ApiHost": "http://localhost:11434/v1",
+      "ApiKey": "",
+      "Model": "llama2",
+      "IsOpenAICompatible": true,
+      "MaxTokens": 3500,
+      "Temperature": 0.5,
+      "RequestTimeout": 120
+    }
+  },  "InstructionsPipeline": {
+    "SystemMessage": "Sie sind ein hilfreicher Assistent für Instandhaltungsmanagement und technische Anleitungen in Paledo.",
+    "MinChunkSize": 300,
+    "MaxChunkSize": 1500,
+    "MaxSamplesPerChunk": 3,
+    "MaxTotalSamples": 1000,
+    "QuestionTypes": [
+      "was_ist",
+      "wie_funktioniert", 
+      "welche_schritte",
+      "warum",
+      "wann_verwendet",
+      "welche_vorteile",
+      "wie_konfiguriert",
+      "was_beachten",
+      "welche_optionen",
+      "wie_unterscheidet"
+    ],
+    "UseDocumentContext": true,
+    "ContextAnalysisLength": 5000
+  }
+}
