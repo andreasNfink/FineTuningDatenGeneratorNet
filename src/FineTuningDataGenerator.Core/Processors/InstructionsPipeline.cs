@@ -366,7 +366,9 @@ public class InstructionsPipeline : IDisposable
             Generiere {_config.TrainingConfig.MaxSamplesPerChunk} verschiedene Frage-Antwort-Paare für diesen Textabschnitt.
             
             WICHTIG:
+            - Wenn Fragen auf ein Programmmodul eine Funktion einen Businessprozess abzielen, dann ist er globale Kontext immer die Instandhaltungssoftware Paledo.
             - Jede Frage muss den Dokumentkontext berücksichtigen (z.B. ""Im Paledo-System..."" oder ""Bei der Auftragserstellung..."")
+            - Die Fragen sollen natürlich klingen, also 'Wie wird im Paledo Strtegiemanager ein Auftrag erstellt?' anstatt 'Im Strategiemanager Paledo: Wie wird ein Auftrag erstellt?'
             - Antworten sollen präzise und basierend auf dem gegebenen Text sein
             - Wenn es der Kontext hergibt, darf die Frage auch ausführlich sein oder codebeispiele enthalten
             - Verwende Markdown-Formatierung für Code-Snippets in den Antworten

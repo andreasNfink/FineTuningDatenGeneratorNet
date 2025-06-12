@@ -277,18 +277,18 @@ public class FineTuningConsoleApp
         var maxSamplesInput = System.Console.ReadLine();
         var maxSamplesPerChunk = int.TryParse(maxSamplesInput, out var samples) ? samples : 3;
 
-        System.Console.Write("Maximale Gesamtsamples (Enter für 1000): ");
+        System.Console.Write("Maximale Gesamtsamples (Enter für 2000): ");
         var maxTotalInput = System.Console.ReadLine();
-        var maxTotalSamples = int.TryParse(maxTotalInput, out var total) ? total : 1000;
+        var maxTotalSamples = int.TryParse(maxTotalInput, out var total) ? total : 2000;
 
         // Parallelisierungs-Konfiguration
-        System.Console.Write($"Maximale parallele Dokumente (Enter für {Environment.ProcessorCount}): ");
+        System.Console.Write($"Maximale parallele Dokumente (Enter für 1): ");
         var maxDocsInput = System.Console.ReadLine();
-        var maxConcurrentDocs = int.TryParse(maxDocsInput, out var docs) ? docs : Environment.ProcessorCount;
+        var maxConcurrentDocs = int.TryParse(maxDocsInput, out var docs) ? docs : 1;
 
-        System.Console.Write($"Maximale parallele Chunks pro Dokument (Enter für {Environment.ProcessorCount * 2}): ");
+        System.Console.Write($"Maximale parallele Chunks pro Dokument (Enter für 2): ");
         var maxChunksInput = System.Console.ReadLine();
-        var maxConcurrentChunks = int.TryParse(maxChunksInput, out var chunks) ? chunks : Environment.ProcessorCount * 2;
+        var maxConcurrentChunks = int.TryParse(maxChunksInput, out var chunks) ? chunks : 2;
 
         System.Console.Write("Maximale gleichzeitige LLM-Anfragen (Enter für 4): ");
         var maxLLMInput = System.Console.ReadLine();
@@ -421,7 +421,7 @@ public class FineTuningConsoleApp
     }/// <summary>
     /// Interaktive LLM-Konfiguration
     /// </summary>
-    private LLMConfig? GetLLMConfigInteractive()
+    private LLMConfig? GetLLMConfigInteractive1()
     {
         System.Console.WriteLine("=== LLM-Konfiguration ===");
         
@@ -452,37 +452,65 @@ public class FineTuningConsoleApp
 
         return config;
     }
+    
+    private LLMConfig? GetLLMConfigInteractive()
+    {
+        System.Console.WriteLine("=== LLM-Konfiguration ===");
+        
+        // Standard-Werte basierend auf dem Screenshot
+        
+           var apiHost = "http://svki01:9000/v1/";
+
+        
+            var modelName = "jakiAJK/microsoft-phi-4_GPTQ-int4";
+
+        
+        var apiKey = "EMPTY"; 
+
+        var config = new LLMConfig
+        {
+            Name = "jakiAJK/microsoft-phi-4_GPTQ-int4",
+            ApiHost = apiHost,
+            ApiKey = apiKey ?? string.Empty,
+            Model = "jakiAJK/microsoft-phi-4_GPTQ-int4", // Wie im Screenshot
+            IsOpenAICompatible = true,
+            MaxTokens = 2000,
+            Temperature = 0.7
+        };
+
+        return config;
+    }
 
     /// <summary>    /// Testet die LLM-Verbindung
     /// </summary>
     private async Task TestLLMConnectionInteractive()
     {
         _logger.LogInformation("=== LLM-Verbindungstest ===");
-        
+
         var config = GetLLMConfigInteractive();
         if (config == null) return;
 
         using var llmService = new LLMService(config);
-        
+
         _logger.LogInformation("Teste Verbindung zu {Host}...", config.ApiHost);
-        
+
         try
         {
             var success = await llmService.TestConnectionAsync();
-            
+
             if (success)
             {
                 _logger.LogInformation("✅ Verbindung erfolgreich!");
-                
+
                 // Kurzen Test durchführen
                 var messages = new List<Message>
                 {
                     new() { Role = "system", Content = "Sie sind ein hilfreicher Assistent." },
                     new() { Role = "user", Content = "Erkläre kurz was Instandhaltung ist." }
                 };
-                
+
                 var response = await llmService.ChatCompletionAsync(messages);
-                _logger.LogInformation("📝 Test-Antwort: {Response}", 
+                _logger.LogInformation("📝 Test-Antwort: {Response}",
                     response.Length > 200 ? response.Substring(0, 200) + "..." : response);
             }
             else

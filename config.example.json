@@ -8,24 +8,24 @@
       "IsOpenAICompatible": true,
       "MaxTokens": 4000,
       "Temperature": 0.7,
-      "RequestTimeout": 90
+      "RequestTimeout": 180
     },
     "local": {
-      "Name": "local-llm",
-      "ApiHost": "http://localhost:11434/v1",
+      "Name": "phi4",
+      "ApiHost": "http://svki01:9000/v1",
       "ApiKey": "",
-      "Model": "llama2",
+      "Model": "jakiAJK/microsoft-phi-4_GPTQ-int4",
       "IsOpenAICompatible": true,
       "MaxTokens": 3500,
-      "Temperature": 0.5,
-      "RequestTimeout": 120
+      "Temperature": 0.7,
+      "RequestTimeout": 180
     }
   },  "InstructionsPipeline": {
     "SystemMessage": "Sie sind ein hilfreicher Assistent für Instandhaltungsmanagement und technische Anleitungen in Paledo.",
     "MinChunkSize": 300,
-    "MaxChunkSize": 3000,
+    "MaxChunkSize": 2500,
     "MaxSamplesPerChunk": 3,
-    "MaxTotalSamples": 2000,
+    "MaxTotalSamples": 5000,
     "QuestionTypes": [
       "was_ist",
       "wie_funktioniert", 

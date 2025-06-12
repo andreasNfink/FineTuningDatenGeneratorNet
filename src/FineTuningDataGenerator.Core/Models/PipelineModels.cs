@@ -11,10 +11,9 @@ public class LLMConfig
     public string ApiHost { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
-    public bool IsOpenAICompatible { get; set; } = true;
-    public int MaxTokens { get; set; } = 2000;
+    public bool IsOpenAICompatible { get; set; } = true;    public int MaxTokens { get; set; } = 2000;
     public double Temperature { get; set; } = 0.7;
-    public int RequestTimeout { get; set; } = 60;
+    public int RequestTimeout { get; set; } = 180;
 }
 
 /// <summary>
